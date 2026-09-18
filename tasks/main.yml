@@ -1,0 +1,38 @@
+---
+- name: Build group name to gid map
+  ansible.builtin.set_fact:
+    user_group_gid_map: "{{ user_group_gid_map | default({}) | combine({ item.name: item.gid }) }}"
+  loop: "{{ user.groups | default([]) }}"
+  when: item.gid is defined
+
+- name: Ensure home path ownership for user users
+  ansible.builtin.file:
+    path: "{{ item.home | default('/home/' ~ item.name) }}"
+    state: directory
+    owner: "{{ item.uid | default(omit) }}"
+    group: "{{ user_group_gid_map[item.group | default(item.name)] | default(omit) }}"
+    mode: "0700"
+  loop: "{{ user.users | default([]) }}"
+  when: item.state | default('present') == 'present'
+
+- name: Ensure user groups exist
+  ansible.builtin.group:
+    name: "{{ item.name }}"
+    gid: "{{ item.gid | default(omit) }}"
+    state: present
+  loop: "{{ user.groups | default([]) }}"
+
+- name: Ensure user users exist
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    uid: "{{ item.uid | default(omit) }}"
+    group: "{{ item.group | default(item.name) }}"
+    groups: "{{ item.groups | default(omit) }}"
+    #append: true
+    shell: "{{ item.shell | default('/bin/bash') }}"
+    home: "{{ item.home | default('/home/' ~ item.name) }}"
+    create_home: "{{ item.create_home | default(true) }}"
+    password: "{{ item.password | default(omit) }}"
+    update_password: "{{ item.update_password | default(omit) }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ user.users | default([]) }}"
