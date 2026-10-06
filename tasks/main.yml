@@ -36,13 +36,41 @@
   loop_control:
     label: "{{ item.name }}"
 
+# before the group change: a user losing a group (e.g. wheel) keeps sudo through this file, so the admin running
+# ansible is never locked out
+- name: Sudo rules for users
+  ansible.builtin.template:
+    src: sudoers-user.j2
+    dest: "/etc/sudoers.d/50-ansible-user-{{ item.name }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  loop: "{{ user_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.sudo | default(false) | bool
+    - item.state | default('present') == 'present'
+
+- name: Remove sudo rules of users without sudo
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/50-ansible-user-{{ item.name }}"
+    state: absent
+  loop: "{{ user_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: not (item.sudo | default(false) | bool) or item.state | default('present') != 'present'
+
+# secondary groups are desired state: exactly the listed groups, all others are removed
+# (an empty list removes all secondary groups)
 - name: Ensure user users exist
   ansible.builtin.user:
     name: "{{ item.name }}"
     uid: "{{ item.uid | default(omit) }}"
     group: "{{ item.group | default(item.name) }}"
-    groups: "{{ item.groups | default(omit) }}"
-    #append: true
+    groups: "{{ item.groups | default([]) | join(',') }}"
+    append: false
     shell: "{{ item.shell | default('/bin/bash') }}"
     home: "{{ item.home | default('/home/' ~ item.name) }}"
     create_home: "{{ item.create_home | default(true) }}"

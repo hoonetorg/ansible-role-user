@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+# sudo for {{ item.name }} (ansible-role-user, user.users[].sudo)
+# own password instead of root's: openSUSE's base sudoers has "Defaults targetpw"
+Defaults:{{ item.name }} !targetpw
+{{ item.name }} ALL=(ALL:ALL) {{ 'NOPASSWD: ' if item.sudo_nopasswd | default(false) else '' }}ALL
